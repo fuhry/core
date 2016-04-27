@@ -37,6 +37,7 @@ use OC;
 use OC\Authentication\Exceptions\InvalidTokenException;
 use OC\Authentication\Token\DefaultTokenProvider;
 use OC\Authentication\Token\IProvider;
+use OC\Authentication\Token\IToken;
 use OC\Hooks\Emitter;
 use OC_User;
 use OCA\DAV\Connector\Sabre\Auth;
@@ -219,12 +220,7 @@ class Session implements IUserSession, Emitter {
 		}
 
 		// Session is valid, so the token can be refreshed
-		// To save unnecessary DB queries, this is only done once a minute
-		$lastTokenUpdate = $this->session->get('last_token_update') ? : 0;
-		if ($lastTokenUpdate < (time () - 60)) {
-			$this->tokenProvider->updateToken($token);
-			$this->session->set('last_token_update', time());
-		}
+		$this->updateToken($this->tokenProvider, $token);
 
 		return true;
 	}
@@ -304,6 +300,7 @@ class Session implements IUserSession, Emitter {
 
 	/**
 	 * Tries to login the user with HTTP Basic Authentication
+	 * @return boolean if the login was successful
 	 */
 	public function tryBasicAuthLogin() {
 		if (!empty($_SERVER['PHP_AUTH_USER']) && !empty($_SERVER['PHP_AUTH_PW'])) {
@@ -320,7 +317,9 @@ class Session implements IUserSession, Emitter {
 					Auth::DAV_AUTHENTICATED, $this->getUser()->getUID()
 				);
 			}
+			return $result;
 		}
+		return false;
 	}
 
 	private function loginWithToken($uid) {
@@ -340,11 +339,12 @@ class Session implements IUserSession, Emitter {
 	/**
 	 * Create a new session token for the given user credentials
 	 *
+	 * @param IRequest $request
 	 * @param string $uid user UID
 	 * @param string $password
 	 * @return boolean
 	 */
-	public function createSessionToken($uid, $password) {
+	public function createSessionToken(IRequest $request, $uid, $password) {
 		$this->session->regenerateId();
 		if (is_null($this->manager->get($uid))) {
 			// User does not exist
@@ -365,11 +365,12 @@ class Session implements IUserSession, Emitter {
 	private function validateToken(IRequest $request, $token) {
 		foreach ($this->tokenProviders as $provider) {
 			try {
-				$user = $provider->validateToken($token);
-				if (!is_null($user)) {
-					$result = $this->loginWithToken($user);
+				$token = $provider->validateToken($token);
+				if (!is_null($token)) {
+					$result = $this->loginWithToken($token->getUid());
 					if ($result) {
 						// Login success
+						$this->updateToken($provider, $token);
 						return true;
 					}
 				}
@@ -378,6 +379,19 @@ class Session implements IUserSession, Emitter {
 			}
 		}
 		return false;
+	}
+
+	/**
+	 * @param IProvider $provider
+	 * @param IToken $token
+	 */
+	private function updateToken(IProvider $provider, IToken $token) {
+		// To save unnecessary DB queries, this is only done once a minute
+		$lastTokenUpdate = $this->session->get('last_token_update') ? : 0;
+		if ($lastTokenUpdate < (time () - 60)) {
+			$provider->updateToken($token);
+			$this->session->set('last_token_update', time());
+		}
 	}
 
 	/**

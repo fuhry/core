@@ -151,31 +151,6 @@ class OC_User {
 	}
 
 	/**
-	 * Try to login a user
-	 *
-	 * @param string $loginname The login name of the user to log in
-	 * @param string $password The password of the user
-	 * @return boolean|null
-	 *
-	 * Log in a user and regenerate a new session - if the password is ok
-	 *
-	 * @deprecated Use \OCP\IUserSession::login
-	 */
-	public static function login($loginname, $password) {
-		$result = self::getUserSession()->login($loginname, $password);
-		if ($result) {
-			// Refresh the token
-			\OC::$server->getCsrfTokenManager()->refreshToken();
-			//we need to pass the user name, which may differ from login name
-			$user = self::getUserSession()->getUser()->getUID();
-			OC_Util::setupFS($user);
-			//trigger creation of user home and /files folder
-			\OC::$server->getUserFolder($user);
-		}
-		return $result;
-	}
-
-	/**
 	 * Try to login a user using the magic cookie (remember login)
 	 *
 	 * @param string $uid The username of the user to log in

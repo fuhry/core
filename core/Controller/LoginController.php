@@ -158,7 +158,6 @@ class LoginController extends Controller {
 	}
 
 	/**
-	 * @NoCSRFRequired
 	 * @PublicPage
 	 * @UseSession
 	 *
@@ -170,7 +169,7 @@ class LoginController extends Controller {
 	public function tryLogin($user, $password, $redirect_url) {
 		// TODO: Add all the insane error handling
 		if ($this->userManager->checkPassword($user, $password) === false) {
-			return new RedirectResponse($this->urlGenerator->linkToRoute('login#showLoginForm'));
+			return new RedirectResponse($this->urlGenerator->linkToRoute('core.login.showLoginForm'));
 		}
 		$this->userSession->createSessionToken($this->request, $user, $password);
 		if (!is_null($redirect_url) && $this->userSession->isLoggedIn()) {
